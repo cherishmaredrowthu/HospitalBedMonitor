@@ -1,65 +1,73 @@
 🏥 BedMonitor Live: Real-Time Hospital Bed Availability & Navigation
-BedMonitor Live is a full-stack web application designed to bridge the gap between patients and emergency medical resources. The system provides real-time tracking of critical hospital resources like ICU, Oxygen-supported, and General beds, combined with GPS-based proximity sorting and live navigation.
+
+BedMonitor Live is a full-stack web application designed to bridge the gap between patients and emergency medical resources. It enables real-time tracking of hospital bed availability (ICU, Oxygen-supported, and General beds) along with GPS-based proximity search and live navigation.
+
 🚀 Key Features
 🌍 Public Interface
-Geo-Aware Search: Automatically detects user location and sorts hospitals by proximity using the Haversine formula.
-Live Navigation: Integrated Leaflet Routing Machine providing turn-by-turn directions with traffic-adjusted travel time estimates.
-Data Freshness: Displays "Last Updated" timestamps for every hospital to ensure data reliability during emergencies.
-Smart Filtering: Filter hospitals by bed type (ICU, Oxygen, General) and availability.
+Geo-Aware Search: Detects user location and sorts hospitals by proximity using the Haversine formula
+Live Navigation: Turn-by-turn navigation using Leaflet Routing Machine
+Data Freshness: Displays Last Updated timestamps for reliability
+Smart Filtering: Filter hospitals by bed type and availability
 🔐 Hospital Staff Portal
-Secure Synchronization: Real-time dashboard for staff to update available bed counts instantly.
-Security Lifecycle: Forced password change policy upon first-time login with temporary credentials.
-Automatic Status Sync: Updates made by staff are reflected on the public map immediately without page reloads.
+Real-Time Updates: Staff can instantly update bed availability
+Secure Login Flow: Forced password reset on first login
+Auto Sync: Updates reflect on public dashboard without reload
 🛡️ Admin Dashboard
-Verification Workflow: Gatekeeper logic where Admins verify a hospital's phone and website before activation.
-System Analytics: High-level overview of total bed capacity and usage across the entire network.
-Critical Alerts: Automated red-zone alerts for hospitals that reach zero bed capacity in critical categories.
+Verification Workflow: Admin validates hospital details before activation
+System Analytics: Overview of total bed capacity and usage
+Critical Alerts: Red-zone alerts when bed availability reaches zero
 🛠️ Technology Stack
 Backend: Java Spring Boot, Spring Security, Spring Data JPA
-Database: MySQL / TiDB Cloud (Relational data storage)
+Database: MySQL / TiDB Cloud
 Frontend: HTML5, CSS3 (Bootstrap 5), JavaScript (ES6+)
-Mapping: Leaflet.js & OpenStreetMap (Free, high-performance geospatial mapping)
-Routing: Leaflet Routing Machine & Nominatim Geocoder
+Mapping: Leaflet.js, OpenStreetMap
+Routing: Leaflet Routing Machine, Nominatim Geocoder
 📂 Project Structure
-code
-Text
 src/main/java/com/project/hospital_bed_monitor/
-  ├── config/       # Security and API configurations
-  ├── controller/   # REST Endpoints (Admin, Staff, Public)
-  ├── dto/          # Data Transfer Objects for secure data exchange
-  ├── entity/       # Database Models (User, Hospital, BedAvailability)
-  ├── repository/   # JPA Repositories
-  └── service/      # Business logic and User Details Service
+├── config/        # Security & API configurations
+├── controller/    # REST Controllers (Admin, Staff, Public)
+├── dto/           # Data Transfer Objects
+├── entity/        # Database Entities
+├── repository/    # JPA Repositories
+└── service/       # Business Logic
+
 src/main/resources/
-  ├── static/       # Frontend HTML, CSS, and JS files
-  └── application.properties # Configuration for DB and Port
+├── static/        # Frontend (HTML, CSS, JS)
+└── application.properties
 ⚙️ Setup & Installation
 1. Prerequisites
-Java 17 or higher
-MySQL 8.0
+Java 17+
+MySQL 8+
 Maven
 2. Database Setup
-Run the following commands in your MySQL workbench:
-code
-SQL
 CREATE DATABASE hospital_db;
--- Note: The application will automatically create tables on the first run 
--- due to 'spring.jpa.hibernate.ddl-auto=update'
-3. Application Configuration
-Update src/main/resources/application.properties:
-code
-Properties
+
+Tables will be created automatically on first run (spring.jpa.hibernate.ddl-auto=update)
+
+3. Configuration
+
+Update application.properties:
+
 spring.datasource.url=jdbc:mysql://localhost:3306/hospital_db
 spring.datasource.username=your_username
 spring.datasource.password=your_password
-4. Running the Application
-code
-Bash
+4. Run Application
 mvn clean install
 mvn spring-boot:run
-The application will be live at http://localhost:8080.
+
+Access the app at:
+👉 http://localhost:8080
+
 👨‍🏫 Evaluation Highlights
-Haversine Implementation: Custom mathematical logic for proximity sorting.
-Role-Based Access Control (RBAC): Distinct permissions for Public, Staff, and Admin roles.
-Traffic Buffer Logic: Implemented a 1.3x multiplier to OpenStreetMap data to provide realistic travel times.
-Relational Integrity: Complex @OneToMany relationships with infinite recursion protection.
+Haversine Formula: Custom implementation for accurate distance calculation
+RBAC (Role-Based Access Control): Separate roles for Public, Staff, Admin
+Traffic Buffer Logic: 1.3x multiplier for realistic travel time estimates
+Optimized Relationships: Efficient @OneToMany mapping with recursion handling
+📌 Future Enhancements
+Mobile application (Android/iOS)
+Real-time notifications for nearby hospitals
+AI-based demand prediction for hospital resources
+Donor/volunteer integration for emergency support
+🤝 Contributing
+
+Contributions are welcome! Feel free to fork the repo and submit a pull request.
