@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BedMonitor | Real-Time Hospital Availability & Navigation</title>
+
+    <!-- Leaflet & Routing -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --primary: #0d6efd; --dark: #212529; --accent: #ffc107; }
+        body { font-family: 'Inter', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #f4f7f6; }
+
+        /* Navbar Styling */
+        .navbar-brand { font-weight: 700; font-size: 1.5rem; letter-spacing: -1px; }
+        .nav-link-btn { font-weight: 600; border-radius: 8px; transition: 0.3s; padding: 8px 15px !important; font-size: 0.85rem; }
+        .btn-apply { background: var(--accent); color: #000 !important; box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3); }
+        .btn-login-alt { background: var(--dark); color: #fff !important; }
+        .btn-login-alt:hover { background: #000; color: #fff !important; }
+
+        /* Layout */
+        #main-layout { flex: 1; display: flex; overflow: hidden; }
+        #sidebar { width: 420px; background: white; border-right: 1px solid #dee2e6; overflow-y: auto; padding: 0; display: flex; flex-direction: column; }
+        #map-area { flex: 1; position: relative; }
+        #map { height: 100%; width: 100%; z-index: 1; }
+
+        /* Sidebar UI */
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #eee; background: #fff; position: sticky; top: 0; z-index: 10; }
+        .hospital-card { border: 1px solid #eee; border-radius: 15px; padding: 15px; margin: 12px 15px; border-left: 6px solid var(--primary); transition: 0.3s; cursor: pointer; background: #fff; position: relative; }
+        .hospital-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+
+        .dist-tag { font-size: 0.75rem; font-weight: 700; color: var(--primary); background: #e7f0ff; padding: 4px 10px; border-radius: 20px; }
+        .update-timer { font-size: 0.7rem; color: #6c757d; font-weight: 500; }
+
+        /* Navigation Overlays */
+        #route-info { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000;
+                      background: white; padding: 15px 30px; border-radius: 50px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+                      display: none; border: 2px solid var(--primary); text-align: center; min-width: 320px; }
+
+        .map-overlay { position: absolute; z-index: 1000; }
+        .search-container { top: 20px; left: 60px; width: 350px; display: flex; gap: 8px; }
+
+        /* Custom User Location Marker Pulse */
+        .user-location-dot { background: #0d6efd; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(13, 110, 253, 0); } 100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); } }
+
+        .leaflet-routing-container { display: none; }
+    </style>
+</head>
+<body>
+
+<!-- Navigation Bar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="index.html">🏥 BedMonitor <span class="badge bg-light text-primary fw-normal" style="font-size: 0.7rem;">LIVE</span></a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <select id="bedTypeFilter" class="form-select form-select-sm mt-1 ms-lg-3 shadow-sm" onchange="filterHospitals()">
+                        <option value="ALL">All Bed Types</option>
+                        <option value="ICU">ICU Available</option>
+                        <option value="OXYGEN">Oxygen Supported</option>
+                        <option value="GENERAL">General Ward</option>
+                    </select>
+                </li>
+            </ul>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-link text-white text-decoration-none fw-bold small" data-bs-toggle="modal" data-bs-target="#aboutModal">About Us</button>
+                <a href="hospitalregistration.html" class="nav-link-btn btn-apply shadow-sm text-center">Apply as Hospital</a>
+                <a href="admin.html" class="nav-link-btn btn-login-alt shadow-sm text-center">Admin Login</a>
+                <a href="staff.html" class="nav-link-btn btn-login-alt shadow-sm text-center">Staff Login</a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div id="main-layout">
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="fw-bold mb-0">Hospitals Nearby</h5>
+                <span id="hCount" class="badge bg-primary">0 Online</span>
+            </div>
+            <p class="text-muted small mb-0">Sorted by proximity to your location</p>
+        </div>
+
+        <div id="hospital-list">
+            <div class="text-center p-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Scanning for nearby beds...</p>
+            </div>
+        </div>
+
+        <div class="mt-auto p-3 bg-light border-top small text-muted">
+            <b>Note:</b> For verified status, contact the hospital directly via the "Call" button.
+        </div>
+    </div>
+
+    <!-- Map View -->
+    <div id="map-area">
+        <div id="route-info" class="fw-bold text-primary shadow-lg">
+            🚗 <span id="dist-val">-- km</span> | 🕒 <span id="time-val">-- mins</span>
+            <div class="text-muted small fw-normal" style="font-size: 0.65rem;">Tracking live traffic conditions</div>
+        </div>
+
+        <div class="map-overlay search-container">
+            <input id="city-search" class="form-control shadow border-0 py-2 px-3" type="text" placeholder="Search City/District (e.g. Krishna)">
+            <button class="btn btn-dark shadow px-4" onclick="searchLocation()">Search</button>
+        </div>
+
+        <div id="map"></div>
+    </div>
+</div>
+
+<!-- About Us Modal -->
+<div class="modal fade" id="aboutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold">About BedMonitor Live</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <h6 class="fw-bold text-primary">Project Goal</h6>
+                <p>To reduce life-saving response time by providing citizens with real-time, location-aware data on hospital bed availability.</p>
+                <hr>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">How it Works</h6>
+                        <ul class="small text-muted">
+                            <li><b>Location Sorting:</b> Automatically identifies your coordinates to suggest the nearest help.</li>
+                            <li><b>Staff Verification:</b> Bed counts are managed by authenticated hospital staff.</li>
+                            <li><b>Routing:</b> Get live distance and time estimates for emergency transit.</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="fw-bold">Tech Overview</h6>
+                        <p class="small text-muted">
+                            <b>Backend:</b> Java Spring Boot, MySQL<br>
+                            <b>Mapping:</b> Leaflet JS & OpenStreetMap<br>
+                            <b>Geolocation:</b> Real-time browser GPS tracking
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+<script>
+    let map, markers = [], allHospitals = [];
+    let userCoords = null, routingControl = null, userMarker = null, activeDestination = null;
+
+    function initMap() {
+        map = L.map('map', { zoomControl: false }).setView([16.5062, 80.6480], 11);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        locateUser();
+        loadHospitals();
+    }
+
+    // Function to calculate readable "time ago"
+    function getTimeAgo(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffInMinutes = Math.floor((now - date) / 60000);
+        if (diffInMinutes < 1) return "Just now";
+        if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        if (diffInHours < 24) return `${diffInHours}h ago`;
+        return date.toLocaleDateString();
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function formatTime(mins) {
+        if (mins < 60) return mins + " mins";
+        return Math.floor(mins / 60) + " hr " + (mins % 60) + " min";
+    }
+
+    function locateUser() {
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(position => {
+                userCoords = [position.coords.latitude, position.coords.longitude];
+                if (!userMarker) {
+                    userMarker = L.circleMarker(userCoords, { className: 'user-location-dot', radius: 10, weight: 0, fillOpacity: 1 }).addTo(map);
+                    map.setView(userCoords, 14);
+                } else {
+                    userMarker.setLatLng(userCoords);
+                }
+                displayHospitals(allHospitals);
+                if (activeDestination) getDirections(activeDestination.lat, activeDestination.lng, false);
+            }, null, { enableHighAccuracy: true });
+        }
+    }
+
+    async function loadHospitals() {
+        try {
+            const res = await fetch('/api/public/hospitals');
+            allHospitals = await res.json();
+            document.getElementById("hCount").innerText = allHospitals.length + " Online";
+            displayHospitals(allHospitals);
+        } catch (e) { document.getElementById("hospital-list").innerHTML = "<p class='p-4 text-danger'>API connection failed.</p>"; }
+    }
+
+    function displayHospitals(data) {
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        const list = document.getElementById("hospital-list");
+        list.innerHTML = "";
+
+        // NEW: Handle empty database
+        if (data.length === 0) {
+        list.innerHTML = `
+            <div class="text-center p-5">
+                <i class="bi bi-search" style="font-size: 2rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No active hospitals found in this region yet.</p>
+            </div>`;
+        return;
+        }
+        if (userCoords) {
+            data.sort((a, b) => {
+                a.dist = calculateDistance(userCoords[0], userCoords[1], a.latitude, a.longitude);
+                b.dist = calculateDistance(userCoords[0], userCoords[1], b.latitude, b.longitude);
+                return a.dist - b.dist;
+            });
+        }
+
+        data.forEach(h => {
+            const marker = L.marker([h.latitude, h.longitude]).addTo(map);
+
+            // Find most recent update among bed types
+            const latestUpdate = h.beds.reduce((latest, bed) =>
+                new Date(bed.lastUpdated) > new Date(latest) ? bed.lastUpdated : latest, h.beds[0].lastUpdated);
+
+            const timeAgo = getTimeAgo(latestUpdate);
+            const distLabel = h.dist ? `<span class="dist-tag">📍 ${h.dist.toFixed(1)} km</span>` : "";
+
+            const popupHtml = `
+                <div style="width:220px">
+                    <h6 class="fw-bold mb-0">${h.name}</h6>
+                    <small class="text-success fw-bold d-block mb-1">🕒 Updated ${timeAgo}</small>
+                    <div class="mb-2 border-top pt-1">${h.beds.map(b => `<div class='d-flex justify-content-between small'><span>${b.bedType}:</span><b>${b.availableBeds}</b></div>`).join('')}</div>
+                    <div class="d-grid gap-1">
+                        <button class="btn btn-primary btn-sm" onclick="getDirections(${h.latitude}, ${h.longitude}, true)">Navigate</button>
+                        <a href="tel:${h.phoneNumber}" class="btn btn-outline-success btn-sm">📞 Call Now</a>
+                    </div>
+                </div>`;
+
+            marker.bindPopup(popupHtml);
+            markers.push(marker);
+
+            const card = document.createElement("div");
+            card.className = "hospital-card shadow-sm";
+            card.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <h6 class="fw-bold mb-0">${h.name}</h6>
+                    ${distLabel}
+                </div>
+                <p class="text-muted small mb-1">${h.address}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-success">ICU: ${h.beds[0]?.availableBeds || 0}</span>
+                        <span class="badge bg-info">OXY: ${h.beds[1]?.availableBeds || 0}</span>
+                    </div>
+                    <span class="update-timer">Updated ${timeAgo}</span>
+                </div>`;
+
+            card.onclick = () => { map.flyTo([h.latitude, h.longitude], 15); marker.openPopup(); };
+            list.appendChild(card);
+        });
+    }
+
+    function getDirections(destLat, destLng, shouldZoom) {
+        if (!userCoords) return;
+        activeDestination = { lat: destLat, lng: destLng };
+        if (routingControl) map.removeControl(routingControl);
+
+        routingControl = L.Routing.control({
+            waypoints: [L.latLng(userCoords[0], userCoords[1]), L.latLng(destLat, destLng)],
+            createMarker: () => null,
+            lineOptions: { styles: [{ color: '#0d6efd', weight: 6, opacity: 0.8 }] }
+        }).on('routesfound', e => {
+            const s = e.routes[0].summary;
+            document.getElementById('route-info').style.display = 'block';
+            document.getElementById('dist-val').innerText = (s.totalDistance/1000).toFixed(1) + " km";
+            const travelMinutes = Math.round((s.totalTime/60) * 1.3);
+            document.getElementById('time-val').innerText = formatTime(travelMinutes);
+            if(shouldZoom) map.fitBounds(L.latLngBounds([userCoords, [destLat, destLng]]));
+        }).addTo(map);
+        map.closePopup();
+    }
+
+    async function searchLocation() {
+        const query = document.getElementById('city-search').value;
+        if(!query) return;
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`);
+        const data = await res.json();
+        if(data.length > 0) {
+            userCoords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+            map.flyTo(userCoords, 13);
+            displayHospitals(allHospitals);
+        }
+    }
+
+    function filterHospitals() {
+        const type = document.getElementById("bedTypeFilter").value;
+        const filtered = type === "ALL" ? allHospitals : allHospitals.filter(h =>
+            h.beds.some(b => b.bedType === type && b.availableBeds > 0)
+        );
+        displayHospitals(filtered);
+    }
+
+    window.onload = initMap;
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

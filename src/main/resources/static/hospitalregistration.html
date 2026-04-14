@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital Registration | BedMonitor</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0f2f5; padding-bottom: 50px; }
+        .reg-card { max-width: 900px; margin: 20px auto; background: white; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; }
+        .reg-header { background: #0d6efd; color: white; padding: 30px; text-align: center; }
+        #picker-map { height: 350px; width: 100%; border-radius: 10px; border: 2px solid #ddd; margin-top: 15px; }
+        .section-title { color: #0d6efd; font-weight: 700; border-bottom: 2px solid #e9ecef; padding-bottom: 8px; margin-bottom: 20px; }
+        .btn-gps { background-color: #198754; color: white; }
+        .btn-gps:hover { background-color: #157347; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="reg-card">
+        <div class="reg-header">
+            <h2 class="fw-bold">Hospital Network Registration</h2>
+            <p class="mb-0">Fill in details to be visible on the live monitoring map.</p>
+        </div>
+
+        <form id="regForm" class="p-4 p-md-5">
+            <h5 class="section-title">1. Identity & Contact</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Hospital Name</label>
+                    <input type="text" id="name" class="form-control form-control-lg" placeholder="e.g. Apollo Hospital" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Phone Number</label>
+                    <input type="text" id="phone" class="form-control form-control-lg" placeholder="For Admin Verification" required>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label fw-bold">Address / Area</label>
+                    <input type="text" id="address" class="form-control" placeholder="Street, Area, City (e.g. Main Road, Challapalle)" required>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label fw-bold">Website (Optional)</label>
+                    <input type="url" id="website" class="form-control" placeholder="https://www.hospital.com">
+                </div>
+            </div>
+
+            <h5 class="section-title mt-5">2. Set Map Location</h5>
+            <div class="alert alert-info small">
+                <b>Tip:</b> If your hospital is already on Google Maps, just enter the name above and click "Search by Name".
+                Alternatively, if you are at the hospital, click "Use My Current GPS".
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <button type="button" class="btn btn-dark w-100 py-2" onclick="searchByNameAndPlace()">🔍 Search by Name</button>
+                </div>
+                <div class="col-md-4">
+                    <button type="button" class="btn btn-gps w-100 py-2" onclick="getLiveGPS()">📍 Use My Current GPS</button>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" id="lat" class="form-control text-center" placeholder="Lat" readonly required>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" id="lng" class="form-control text-center" placeholder="Lng" readonly required>
+                </div>
+            </div>
+
+            <div id="picker-map"></div>
+
+            <h5 class="section-title mt-5">3. Bed Capacity Configuration</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card p-3 border-danger shadow-sm">
+                        <label class="form-label fw-bold text-danger">Total ICU Beds</label>
+                        <input type="number" id="icu" class="form-control" value="0" min="0">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card p-3 border-info shadow-sm">
+                        <label class="form-label fw-bold text-info">Total Oxygen Beds</label>
+                        <input type="number" id="oxy" class="form-control" value="0" min="0">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card p-3 border-success shadow-sm">
+                        <label class="form-label fw-bold text-success">Total General Beds</label>
+                        <input type="number" id="gen" class="form-control" value="0" min="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-5">
+                <button type="submit" class="btn btn-primary btn-lg w-100 shadow fw-bold py-3">SUBMIT REGISTRATION</button>
+                <div class="text-center mt-3">
+                    <a href="index.html" class="text-decoration-none">← Cancel and return to Map</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    let pickerMap, marker;
+
+    function initMap() {
+        // Default: Center on Andhra Pradesh
+        pickerMap = L.map('picker-map').setView([16.5062, 80.6480], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(pickerMap);
+
+        pickerMap.on('click', function(e) {
+            updateMarker(e.latlng.lat, e.latlng.lng);
+        });
+    }
+
+    function updateMarker(lat, lng) {
+        if (marker) pickerMap.removeLayer(marker);
+        marker = L.marker([lat, lng], {draggable: true}).addTo(pickerMap);
+
+        document.getElementById('lat').value = lat.toFixed(6);
+        document.getElementById('lng').value = lng.toFixed(6);
+
+        marker.on('dragend', function(e) {
+            let position = marker.getLatLng();
+            updateMarker(position.lat, position.lng);
+        });
+
+        pickerMap.setView([lat, lng], 16);
+    }
+
+    // FEATURE 1: Search by Hospital Name + Location
+    async function searchByNameAndPlace() {
+        const name = document.getElementById('name').value;
+        const address = document.getElementById('address').value;
+
+        if (!name || !address) {
+            alert("Please enter both Hospital Name and Address to search.");
+            return;
+        }
+
+        const query = `${name}, ${address}`;
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            if (data.length > 0) {
+                updateMarker(parseFloat(data[0].lat), parseFloat(data[0].lon));
+            } else {
+                alert("Specific hospital not found. Try searching for just the Area or click manually on map.");
+            }
+        } catch (err) { console.error(err); }
+    }
+
+    // FEATURE 2: High-Accuracy GPS (Works best on Mobile)
+    function getLiveGPS() {
+        if (navigator.geolocation) {
+            alert("Please click 'Allow' to use your phone's GPS for precise location.");
+            navigator.geolocation.getCurrentPosition(pos => {
+                updateMarker(pos.coords.latitude, pos.coords.longitude);
+            }, (err) => {
+                alert("GPS Error: " + err.message + ". Ensure Location is ON.");
+            }, { enableHighAccuracy: true });
+        }
+    }
+
+    // Handle Form Submission
+    document.getElementById('regForm').onsubmit = async (e) => {
+        e.preventDefault();
+
+        const lat = document.getElementById('lat').value;
+        if (!lat) {
+            alert("Please set your location on the map first.");
+            return;
+        }
+
+        const payload = {
+            name: document.getElementById('name').value,
+            address: document.getElementById('address').value,
+            phoneNumber: document.getElementById('phone').value,
+            websiteUrl: document.getElementById('website').value,
+            latitude: parseFloat(lat),
+            longitude: parseFloat(document.getElementById('lng').value),
+            icuTotal: parseInt(document.getElementById('icu').value),
+            oxygenTotal: parseInt(document.getElementById('oxy').value),
+            generalTotal: parseInt(document.getElementById('gen').value)
+        };
+
+        const res = await fetch('/api/public/register-hospital', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert("Application Submitted! Admin will verify your hospital soon.");
+            window.location.href = "index.html";
+        } else {
+            alert("Error submitting. Please check all fields.");
+        }
+    };
+
+    window.onload = initMap;
+</script>
+</body>
+</html>
